@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.o
+*.obj
+*.exe
+*.out
+*.log
+*.a
+*.so
+*.dll
+*.dylib
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# VSCode settings
+.vscode/
+
+CMakeUserPresets.json
