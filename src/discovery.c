@@ -167,6 +167,16 @@ MyRejectHandler(BACNET_ADDRESS *src, uint8_t invoke_id, uint8_t reject_reason)
         bactext_reject_reason_name(reject_reason));
     Error_Detected = true;
 }
+// ...existing code...
+static void handler_who_am_i_json_print(
+    uint8_t *service_request, uint16_t service_len, BACNET_ADDRESS *src)
+{
+    (void)service_request;
+    (void)service_len;
+    (void)src;
+    /* TODO: decode Who-Am-I payload and print JSON if you need this feature */
+}
+// ...existing code...
 
 static void init_service_handlers(void)
 {
@@ -188,6 +198,8 @@ static void init_service_handlers(void)
     apdu_set_abort_handler(MyAbortHandler);
     apdu_set_reject_handler(MyRejectHandler);
 }
+
+
 
 static void print_macaddr(const uint8_t *addr, int len)
 {
