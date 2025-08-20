@@ -263,89 +263,7 @@ static void print_address_cache(void)
     }
 }
 
-static void print_usage(const char *filename)
-{
-    printf("Usage: %s", filename);
-    printf(" [device-instance-min [device-instance-max]]\n");
-    printf("       [--dnet][--dadr][--mac]\n");
-    printf("       [--version][--help]\n");
-}
 
-static void print_help(const char *filename)
-{
-    printf("Send BACnet WhoIs service request to a device or multiple\n"
-           "devices, and wait for responses. Displays any devices found\n"
-           "and their network information.\n");
-    printf("\n");
-    printf("device-instance:\n"
-           "BACnet Device Object Instance number that you are trying\n"
-           "to send a Who-Is service request. The value should be in\n"
-           "the range of 0 to 4194303. A range of values can also be\n"
-           "specified by using a minimum value and a maximum value.\n");
-    printf("\n");
-    printf("--mac A\n"
-           "BACnet mac address."
-           "Valid ranges are from 00 to FF (hex) for MS/TP or ARCNET,\n"
-           "or an IP string with optional port number like 10.1.2.3:47808\n"
-           "or an Ethernet MAC in hex like 00:21:70:7e:32:bb\n");
-    printf("\n");
-    printf("--dnet N\n"
-           "BACnet network number N for directed requests.\n"
-           "Valid range is from 0 to 65535 where 0 is the local connection\n"
-           "and 65535 is network broadcast.\n");
-    printf("\n");
-    printf("--dadr A\n"
-           "BACnet mac address on the destination BACnet network number.\n"
-           "Valid ranges are from 00 to FF (hex) for MS/TP or ARCNET,\n"
-           "or an IP string with optional port number like 10.1.2.3:47808\n"
-           "or an Ethernet MAC in hex like 00:21:70:7e:32:bb\n");
-    printf("\n");
-    printf("--repeat\n"
-           "Send the message repeatedly until signalled to quit.\n"
-           "Default is disabled, using the APDU timeout as time to quit.\n");
-    printf("\n");
-    printf("--retry C\n"
-           "Send the message C number of times\n"
-           "Default is retry 0, only sending one time.\n");
-    printf("\n");
-    printf("--timeout T\n"
-           "Wait T milliseconds after sending before retry\n"
-           "Default delay is 3000ms.\n");
-    printf("\n");
-    printf("--delay M\n"
-           "Wait M milliseconds for responses after sending\n"
-           "Default delay is 100ms.\n");
-    printf("\n");
-    printf("Example:\n");
-    printf(
-        "Send a WhoIs request to DNET 123:\n"
-        "%s --dnet 123\n",
-        filename);
-    printf(
-        "Send a WhoIs request to MAC 10.0.0.1 DNET 123 DADR 05h:\n"
-        "%s --mac 10.0.0.1 --dnet 123 --dadr 05\n",
-        filename);
-    printf(
-        "Send a WhoIs request to MAC 10.1.2.3:47808:\n"
-        "%s --mac 10.1.2.3:47808\n",
-        filename);
-    printf(
-        "Send a WhoIs request to Device 123:\n"
-        "%s 123\n",
-        filename);
-    printf(
-        "Send a WhoIs request to Devices from 1000 to 9000:\n"
-        "%s 1000 9000\n",
-        filename);
-    printf(
-        "Send a WhoIs request to Devices from 1000 to 9000 on DNET 123:\n"
-        "%s 1000 9000 --dnet 123\n",
-        filename);
-    printf(
-        "Send a WhoIs request to all devices:\n"
-        "%s\n",
-        filename);
-}
 
 int main(int argc, char *argv[])
 {
@@ -373,20 +291,8 @@ int main(int argc, char *argv[])
     /* decode any command line parameters */
     filename = filename_remove_path(argv[0]);
     for (argi = 1; argi < argc; argi++) {
-        if (strcmp(argv[argi], "--help") == 0) {
-            print_usage(filename);
-            print_help(filename);
-            return 0;
-        }
-        if (strcmp(argv[argi], "--version") == 0) {
-            printf("%s %s\n", filename, BACNET_VERSION_TEXT);
-            printf("Copyright (C) 2014 by Steve Karg and others.\n"
-                   "This is free software; see the source for copying "
-                   "conditions.\n"
-                   "There is NO warranty; not even for MERCHANTABILITY or\n"
-                   "FITNESS FOR A PARTICULAR PURPOSE.\n");
-            return 0;
-        }
+
+        
         if (strcmp(argv[argi], "--mac") == 0) {
             if (++argi < argc) {
                 if (bacnet_address_mac_from_ascii(&mac, argv[argi])) {
