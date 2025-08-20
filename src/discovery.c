@@ -32,6 +32,10 @@
 #include "bacnet/datalink/datalink.h"
 #include "bacnet/datalink/dlenv.h"
 #include "bacport.h"
+#include <string.h>  /* added */
+
+
+
 
 /* buffer used for receive */
 static uint8_t Rx_Buf[MAX_MPDU] = { 0 };
@@ -144,6 +148,57 @@ static void my_i_am_handler(
     return;
 }
 
+/* helper: extract IPv4 and port from a BACnet/IP address into strings/ints */
+static bool bacaddr_to_ip_port(const BACNET_ADDRESS *addr, char *ip_buf, size_t ip_buf_sz, unsigned *port_out)
+{
+    if (addr->mac_len == 6 && addr->len == 0) {
+        snprintf(ip_buf, ip_buf_sz, "%u.%u.%u.%u",
+                 (unsigned)addr->mac[0], (unsigned)addr->mac[1],
+                 (unsigned)addr->mac[2], (unsigned)addr->mac[3]);
+        unsigned port = ((unsigned)addr->mac[4] << 8) | (unsigned)addr->mac[5];
+        if (port_out) *port_out = port;
+        return true;
+    }
+    /* Not a plain BACnet/IP MAC, cannot extract IP:port */
+    if (ip_buf && ip_buf_sz) ip_buf[0] = '\0';
+    if (port_out) *port_out = 0;
+    return false;
+}
+
+/* persist discovered devices as a JSON array */
+static int persist_discovery_to_json(const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        perror("persist_discovery_to_json fopen");
+        return -1;
+    }
+    fprintf(f, "[\n");
+    struct address_entry *addr = Address_Table.first;
+    bool first = true;
+    while (addr) {
+        char ip[32];
+        unsigned port = 0;
+        (void)bacaddr_to_ip_port(&addr->address, ip, sizeof(ip), &port);
+
+        if (!first) {
+            fprintf(f, ",\n");
+        }
+        first = false;
+        fprintf(f,
+            "  {\"device_instance\":%u,"
+            "\"ip\":\"%s\","
+            "\"port\":%u}",
+            addr->device_id,
+            ip,
+            port);
+
+        addr = addr->next;
+    }
+    fprintf(f, "\n]\n");
+    fclose(f);
+    return 0;
+}
 static void MyAbortHandler(
     BACNET_ADDRESS *src, uint8_t invoke_id, uint8_t abort_reason, bool server)
 {
@@ -283,7 +338,8 @@ int main(int argc, char *argv[])
     const char *filename = NULL;
     bool repeat_forever = false;
     long retry_count = 0;
-
+        /* added: output path for persisting results and project root definition*/
+   const char *out_path = PROJECT_ROOT "/data/discovered.json";
     /* check for local environment settings */
     if (getenv("BACNET_DEBUG")) {
         BACnet_Debug_Enabled = true;
@@ -338,7 +394,7 @@ int main(int argc, char *argv[])
                 Target_Object_Instance_Max = strtol(argv[argi], NULL, 0);
                 target_args++;
             } else {
-                print_usage(filename);
+                // print_usage(filename);
                 return 1;
             }
         }
@@ -434,6 +490,13 @@ int main(int argc, char *argv[])
         }
     }
     print_address_cache();
+
+        /* persist discovery results once after discovery completes */
+    if (out_path) {
+        if (persist_discovery_to_json(out_path) == 0) {
+            fprintf(stderr, "Discovery persisted to %s\n", out_path);
+        }
+    }
 
     return 0;
 }

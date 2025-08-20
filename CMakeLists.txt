@@ -5,6 +5,10 @@ set(CMAKE_C_STANDARD 99)
 
 file(GLOB SOURCES "src/*.c")
 add_executable(bacnet-edge-clientapp ${SOURCES})
+# ...existing code...
+# Embed project root for runtime paths
+add_compile_definitions(PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+# ...existing code...
 
 target_include_directories(bacnet-edge-clientapp PRIVATE include)
 
