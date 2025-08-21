@@ -1,9 +1,12 @@
-// discovery.h
-// Header for BACnet device discovery
+#pragma once
 
-#ifndef DISCOVERY_H
-#define DISCOVERY_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void discover_devices();
+/* Run the discovery CLI (same args as before) */
+int discovery_run_cli(int argc, char *argv[]);
 
-#endif // DISCOVERY_H
+#ifdef __cplusplus
+}
+#endif

@@ -8,6 +8,7 @@
  * @date 2006
  * @copyright SPDX-License-Identifier: MIT
  */
+#include "discovery.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -320,7 +321,7 @@ static void print_address_cache(void)
 
 
 
-int main(int argc, char *argv[])
+int discovery_run_cli(int argc, char *argv[])
 {
     BACNET_ADDRESS src = { 0 }; /* address where message came from */
     uint16_t pdu_len = 0;
@@ -344,105 +345,11 @@ int main(int argc, char *argv[])
     if (getenv("BACNET_DEBUG")) {
         BACnet_Debug_Enabled = true;
     }
-    /* decode any command line parameters */
-    filename = filename_remove_path(argv[0]);
-    for (argi = 1; argi < argc; argi++) {
-
-        
-        if (strcmp(argv[argi], "--mac") == 0) {
-            if (++argi < argc) {
-                if (bacnet_address_mac_from_ascii(&mac, argv[argi])) {
-                    global_broadcast = false;
-                }
-            }
-        } else if (strcmp(argv[argi], "--dnet") == 0) {
-            if (++argi < argc) {
-                dnet = strtol(argv[argi], NULL, 0);
-                if ((dnet >= 0) && (dnet <= BACNET_BROADCAST_NETWORK)) {
-                    global_broadcast = false;
-                }
-            }
-        } else if (strcmp(argv[argi], "--dadr") == 0) {
-            if (++argi < argc) {
-                if (bacnet_address_mac_from_ascii(&adr, argv[argi])) {
-                    global_broadcast = false;
-                }
-            }
-        } else if (strcmp(argv[argi], "--repeat") == 0) {
-            repeat_forever = true;
-        } else if (strcmp(argv[argi], "--retry") == 0) {
-            if (++argi < argc) {
-                retry_count = strtol(argv[argi], NULL, 0);
-                if (retry_count < 0) {
-                    retry_count = 0;
-                }
-            }
-        } else if (strcmp(argv[argi], "--timeout") == 0) {
-            if (++argi < argc) {
-                timeout_milliseconds = strtol(argv[argi], NULL, 0);
-            }
-        } else if (strcmp(argv[argi], "--delay") == 0) {
-            if (++argi < argc) {
-                delay_milliseconds = strtol(argv[argi], NULL, 0);
-            }
-        } else {
-            if (target_args == 0) {
-                Target_Object_Instance_Min = Target_Object_Instance_Max =
-                    strtol(argv[argi], NULL, 0);
-                target_args++;
-            } else if (target_args == 1) {
-                Target_Object_Instance_Max = strtol(argv[argi], NULL, 0);
-                target_args++;
-            } else {
-                // print_usage(filename);
-                return 1;
-            }
-        }
-    }
+ 
     if (global_broadcast) {
         datalink_get_broadcast_address(&dest);
-    } else {
-        if (adr.len && mac.len) {
-            memcpy(&dest.mac[0], &mac.adr[0], mac.len);
-            dest.mac_len = mac.len;
-            memcpy(&dest.adr[0], &adr.adr[0], adr.len);
-            dest.len = adr.len;
-            if ((dnet >= 0) && (dnet <= BACNET_BROADCAST_NETWORK)) {
-                dest.net = dnet;
-            } else {
-                dest.net = BACNET_BROADCAST_NETWORK;
-            }
-        } else if (mac.len) {
-            memcpy(&dest.mac[0], &mac.adr[0], mac.len);
-            dest.mac_len = mac.len;
-            dest.len = 0;
-            if ((dnet >= 0) && (dnet <= BACNET_BROADCAST_NETWORK)) {
-                dest.net = dnet;
-            } else {
-                dest.net = 0;
-            }
-        } else {
-            if ((dnet >= 0) && (dnet <= BACNET_BROADCAST_NETWORK)) {
-                dest.net = dnet;
-            } else {
-                dest.net = BACNET_BROADCAST_NETWORK;
-            }
-            dest.mac_len = 0;
-            dest.len = 0;
-        }
-    }
-    if (Target_Object_Instance_Min > BACNET_MAX_INSTANCE) {
-        fprintf(
-            stderr, "device-instance-min=%u - not greater than %u\n",
-            Target_Object_Instance_Min, BACNET_MAX_INSTANCE);
-        return 1;
-    }
-    if (Target_Object_Instance_Max > BACNET_MAX_INSTANCE) {
-        fprintf(
-            stderr, "device-instance-max=%u - not greater than %u\n",
-            Target_Object_Instance_Max, BACNET_MAX_INSTANCE);
-        return 1;
-    }
+    } 
+    
     /* setup my info */
     Device_Set_Object_Instance_Number(BACNET_MAX_INSTANCE);
     init_service_handlers();
