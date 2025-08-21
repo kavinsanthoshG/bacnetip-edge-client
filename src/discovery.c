@@ -8,6 +8,7 @@
  * @date 2006
  * @copyright SPDX-License-Identifier: MIT
  */
+#include "model.h"
 #include "discovery.h"
 #include <stddef.h>
 #include <stdint.h>
@@ -76,8 +77,54 @@ static struct address_entry *alloc_address_entry(void)
     return rval;
 }
 
+static bool bacaddr_to_ip_port(const BACNET_ADDRESS *addr,
+                               char *ip_buf, size_t ip_buf_sz,
+                               unsigned *port_out);
+                               
+static size_t address_table_count(void) {
+    size_t n = 0;
+    struct address_entry *p = Address_Table.first;
+    while (p) { n++; p = p->next; }
+    return n;
+}
+/* ADD: helper to convert Address_Table -> DeviceInfo[]
+   - Allocates an array; caller must free(*out_devices) */
+static int address_table_to_devices(DeviceInfo **out_devices, size_t *out_count) {
+    if (!out_devices || !out_count) return -1;
+    *out_devices = NULL;
+    *out_count = 0;
+
+    size_t count = address_table_count();
+    if (count == 0) return 0;
+
+    DeviceInfo *arr = (DeviceInfo *)calloc(count, sizeof(DeviceInfo));
+    if (!arr) return -1;
+
+    struct address_entry *p = Address_Table.first;
+    size_t i = 0;
+    while (p && i < count) {
+        char ip[64] = {0};
+        unsigned port = 0;
+        (void)bacaddr_to_ip_port(&p->address, ip, sizeof(ip), &port);
+
+        arr[i].device_instance = p->device_id;
+        strncpy(arr[i].ip, ip, sizeof(arr[i].ip) - 1);
+        arr[i].port = port;
+        i++;
+        p = p->next;
+    }
+
+    *out_devices = arr;
+    *out_count = i;
+    return 0;
+}
+/* helper: count entries in Address_Table */
+
+
+
+
 static void address_table_add(
-    uint32_t device_id, unsigned max_apdu, const BACNET_ADDRESS *src)
+    uint32_t device_id, unsigned max_apdu, BACNET_ADDRESS *src)
 {
     struct address_entry *pMatch;
     uint8_t flags = 0;
@@ -321,89 +368,76 @@ static void print_address_cache(void)
 
 
 
-int discovery_run_cli(int argc, char *argv[])
+int discovery_collect_devices(DeviceInfo **out_devices, size_t *out_count)
 {
-    BACNET_ADDRESS src = { 0 }; /* address where message came from */
+    // 1) Initialize outputs
+    if (!out_devices || !out_count) return -1;
+    *out_devices = NULL;
+    *out_count = 0;
+
+    // 2) BACnet stack setup (no CLI parsing)
+    BACNET_ADDRESS src = {0};
     uint16_t pdu_len = 0;
     unsigned timeout_milliseconds = 0;
     unsigned delay_milliseconds = 100;
-    struct mstimer apdu_timer = { 0 };
-    struct mstimer datalink_timer = { 0 };
-    long dnet = -1;
-    BACNET_MAC_ADDRESS mac = { 0 };
-    BACNET_MAC_ADDRESS adr = { 0 };
-    BACNET_ADDRESS dest = { 0 };
-    bool global_broadcast = true;
-    int argi = 0;
-    unsigned int target_args = 0;
-    const char *filename = NULL;
-    bool repeat_forever = false;
-    long retry_count = 0;
-        /* added: output path for persisting results and project root definition*/
-   const char *out_path = PROJECT_ROOT "/data/discovered.json";
-    /* check for local environment settings */
+    struct mstimer apdu_timer = {0};
+    struct mstimer datalink_timer = {0};
+    BACNET_ADDRESS dest = {0};
+
     if (getenv("BACNET_DEBUG")) {
         BACnet_Debug_Enabled = true;
     }
- 
-    if (global_broadcast) {
-        datalink_get_broadcast_address(&dest);
-    } 
-    
-    /* setup my info */
+
+    // Broadcast by default
+    datalink_get_broadcast_address(&dest);
+
+    // Device/stack init
     Device_Set_Object_Instance_Number(BACNET_MAX_INSTANCE);
     init_service_handlers();
     address_init();
     dlenv_init();
     atexit(datalink_cleanup);
+
+    // Timers: single discovery window (no retries/repeat)
     if (timeout_milliseconds == 0) {
         timeout_milliseconds = apdu_timeout() * apdu_retries();
     }
     mstimer_set(&apdu_timer, timeout_milliseconds);
     mstimer_set(&datalink_timer, 1000);
-    /* send the request */
-    Send_WhoIs_To_Network(
-        &dest, Target_Object_Instance_Min, Target_Object_Instance_Max);
-    if (retry_count > 0) {
-        retry_count--;
-    }
-    /* loop forever */
+
+    // 3) Send Who-Is once
+    Send_WhoIs_To_Network(&dest, Target_Object_Instance_Min, Target_Object_Instance_Max);
+
+    // 4) Receive loop until the discovery window expires
     for (;;) {
-        /* returns 0 bytes on timeout */
-        pdu_len =
-            datalink_receive(&src, &Rx_Buf[0], MAX_MPDU, delay_milliseconds);
-        /* process */
+        /* returns 0 bytes on timeout slice */
+        pdu_len = datalink_receive(&src, &Rx_Buf[0], MAX_MPDU, delay_milliseconds);
+
         if (pdu_len) {
+            /* I-Am responses land in my_i_am_handler and populate Address_Table */
             npdu_handler(&src, &Rx_Buf[0], pdu_len);
         }
         if (Error_Detected) {
             break;
         }
         if (mstimer_expired(&datalink_timer)) {
-            datalink_maintenance_timer(
-                mstimer_interval(&datalink_timer) / 1000);
+            datalink_maintenance_timer(mstimer_interval(&datalink_timer) / 1000);
             mstimer_reset(&datalink_timer);
         }
         if (mstimer_expired(&apdu_timer)) {
-            if (repeat_forever || retry_count) {
-                Send_WhoIs_To_Network(
-                    &dest, Target_Object_Instance_Min,
-                    Target_Object_Instance_Max);
-                retry_count--;
-            } else {
-                break;
-            }
-            mstimer_reset(&apdu_timer);
+            /* End of discovery window: stop looping */
+            break;
         }
     }
+
+    // Optional: keep this for console visibility
     print_address_cache();
 
-        /* persist discovery results once after discovery completes */
-    if (out_path) {
-        if (persist_discovery_to_json(out_path) == 0) {
-            fprintf(stderr, "Discovery persisted to %s\n", out_path);
-        }
-    }
+    // 5) Build and return DeviceInfo[]
+    return address_table_to_devices(out_devices, out_count);
 
-    return 0;
+    /* REMOVED: file persistence (persist_discovery_to_json and out_path).
+       We no longer write discovered.json here; watchlist will handle
+       writing a single file with 'selected' flags.
+    */
 }
