@@ -5,7 +5,7 @@
 #include "model.h"
 #include "discovery.h"
 #include "object_list.h"
-
+#include "watchlist.h"
 #include "bacnet/bacdef.h"
 #include "bacnet/bactext.h"
 
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
         free(devices);
         return 0;
     }
-
+    watchlist_from_devices(devices, count, PROJECT_ROOT "/data/inventory.json");
     printf("Discovered %zu devices. Reading Object_List for each...\n", count);
 
     int failures = 0;
