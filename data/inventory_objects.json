@@ -1,0 +1,18 @@
+{
+  "devices": [
+    {"device_instance":2523247,"ip":"192.168.1.100","port":65348,
+    "objects":[{"type":"device","type_id":8,"instance":2523247},
+    {"type":"analog-input","type_id":0,"instance":0},
+    {"type":"analog-input","type_id":0,"instance":1},
+    {"type":"analog-input","type_id":0,"instance":2},
+    {"type":"analog-value","type_id":2,"instance":0},
+    {"type":"analog-value","type_id":2,"instance":1},
+    {"type":"analog-value","type_id":2,"instance":2},
+    {"type":"analog-value","type_id":2,"instance":3},
+    {"type":"characterstring-value","type_id":40,"instance":1},
+    {"type":"binary-value","type_id":5,"instance":0},
+        {"type":"binary-value","type_id":5,"instance":1},
+    {"type":"multi-state-value","type_id":19,"instance":0},
+    {"type":"multi-state-value","type_id":19,"instance":1}]}
+  ]
+}

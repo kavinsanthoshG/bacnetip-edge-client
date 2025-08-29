@@ -2,13 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "model.h"
-#include "discovery.h"
-#include "object_list.h"
-#include "inventory_objects.h"
-#include "watchlist.h"
-#include "bacnet/bacdef.h"
-#include "bacnet/bactext.h"
+#include "poll_initial.h"     /* poll_device_all_objects */
+#include "bacnet/bacdef.h"    /* OBJECT_*, PROP_ALL names */
+#include "bacnet/bactext.h"   /* bactext_object_type_name (printing inside poll) */
 
 #ifndef PROJECT_ROOT
 #define PROJECT_ROOT "."
@@ -17,87 +13,43 @@
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
-    DeviceInfo *devices = NULL;
-    size_t count = 0;
+    /* Hard‑coded inventory (single device with its objects) */
+    uint32_t device_instance = 2523247;
+    const char *ip = "192.168.1.100";
+    unsigned port = 65348;
 
-    int rc = discovery_collect_devices(&devices, &count);
-    if (rc != 0) {
-        fprintf(stderr, "Discovery failed rc=%d\n", rc);
-        free(devices);
-        return rc;
-    }
+    /* List from provided JSON (order preserved). Each gets an RPM (PROP_ALL). */
+    static const PollObject objects[] = {
+        { OBJECT_DEVICE,          2523247 },
+        { OBJECT_ANALOG_INPUT,    0 },
+        { OBJECT_ANALOG_INPUT,    1 },
+        { OBJECT_ANALOG_INPUT,    2 },
+        { OBJECT_ANALOG_VALUE,    0 },
+        { OBJECT_ANALOG_VALUE,    1 },
+        { OBJECT_ANALOG_VALUE,    2 },
+        { OBJECT_ANALOG_VALUE,    3 },
+        { OBJECT_CHARACTERSTRING_VALUE, 1 },
+        { OBJECT_BINARY_VALUE,    0 },
+        { OBJECT_BINARY_VALUE,    1 },
+        { OBJECT_MULTI_STATE_VALUE, 0 },
+        { OBJECT_MULTI_STATE_VALUE, 1 }
+    };
 
-    if (count == 0) {
-        printf("No devices discovered.\n");
-        free(devices);
-        return 0;
-    }
-    watchlist_from_devices(devices, count, PROJECT_ROOT "/data/inventory.json");
-    DeviceObjects *inventory = NULL;
-    size_t inv_count = 0, inv_cap = 0;
-    int failures = 0;
-    printf("Discovered %zu devices. Reading Object_List for each...\n", count);
-  
-  
-    for (size_t i = 0; i < count; i++) {
-        uint32_t device_instance = devices[i].device_instance;
-        printf("\n[%zu/%zu] Device %u (%s:%u)\n",
-               i + 1, count,
-               device_instance,
-               devices[i].ip[0] ? devices[i].ip : "-",
-               devices[i].port);
+    size_t object_count = sizeof(objects)/sizeof(objects[0]);
 
-        BACnetObjectList list;
-        int orc = bacnet_read_object_list(
-            device_instance,
-            OBJECT_DEVICE,
-            device_instance,
-            PROP_OBJECT_LIST,
-            &list);
+    printf("Polling device %u (%s:%u) - %zu objects (PROP_ALL each)...\n",
+           device_instance, ip, port, object_count);
 
-        if (orc != 0) {
-            fprintf(stderr, "  Object_List read failed rc=%d\n", orc);
-            failures++;
-            continue;
-        }
+    int failures = poll_device_all_objects(device_instance,
+                                           ip,
+                                           port,
+                                           objects,
+                                           object_count);
 
-        printf("  Object_List entries: %zu\n", list.count);
-        for (size_t j = 0; j < list.count; j++) {
-            const char *tname = bactext_object_type_name(list.object_types[j]);
-            printf("    %zu: %s %u\n",
-                   j,
-                   tname ? tname : "Unknown",
-                   list.object_instances[j]);
-        }
-        //added
-        if (inventory_objects_add(&inventory, &inv_count, &inv_cap,
-                                  device_instance,
-                                  devices[i].ip,
-                                  devices[i].port,
-                                  list.object_types,
-                                  list.object_instances,
-                                  list.count) != 0) {
-            fprintf(stderr, "  Failed to record objects for device %u\n", device_instance);
-        }
-        
-        bacnet_object_list_free(&list);
-    }
-     const char *out_path = PROJECT_ROOT "/data/inventory_objects.json";
-    if (inventory_objects_write(out_path, inventory, inv_count) == 0) {
-        printf("\nWrote %zu device object lists to %s\n", inv_count, out_path);
-    } else {
-        fprintf(stderr, "Failed to write inventory objects file\n");
-    }
-    inventory_objects_free(inventory, inv_count);
-    free(devices);
-
-    if (failures) {
-        printf("\nCompleted with %d failures.\n", failures);
+    if (failures > 0) {
+        printf("Completed with %d object polling failures.\n", failures);
         return 1;
     }
-    printf("\nAll device Object_List reads succeeded.\n");
-     return 0;
-
-
+printf("All objects polled successfully.\n");
+    return 0;
 }
-
