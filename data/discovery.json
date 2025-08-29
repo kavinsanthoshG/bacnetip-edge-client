@@ -1,12 +1,6 @@
-[
 {
-"device_instance": 12345,
-"ip": "192.168.1.100",
-"port": 47808
-},
-{
-"device_instance": 20001,
-"ip": "192.168.1.171",
-"port": 47808
+  "devices": [
+    {"device_instance":4194303,"ip":"192.168.1.112","port":47808,"selected":true},
+    {"device_instance":2523247,"ip":"192.168.1.100","port":65348,"selected":true}
+  ]
 }
-]

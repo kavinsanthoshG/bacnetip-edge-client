@@ -5,6 +5,7 @@
 #include "model.h"
 #include "discovery.h"
 #include "object_list.h"
+#include "inventory_objects.h"
 #include "watchlist.h"
 #include "bacnet/bacdef.h"
 #include "bacnet/bactext.h"
@@ -32,9 +33,12 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     watchlist_from_devices(devices, count, PROJECT_ROOT "/data/inventory.json");
-    printf("Discovered %zu devices. Reading Object_List for each...\n", count);
-
+    DeviceObjects *inventory = NULL;
+    size_t inv_count = 0, inv_cap = 0;
     int failures = 0;
+    printf("Discovered %zu devices. Reading Object_List for each...\n", count);
+  
+  
     for (size_t i = 0; i < count; i++) {
         uint32_t device_instance = devices[i].device_instance;
         printf("\n[%zu/%zu] Device %u (%s:%u)\n",
@@ -65,9 +69,26 @@ int main(int argc, char *argv[]) {
                    tname ? tname : "Unknown",
                    list.object_instances[j]);
         }
+        //added
+        if (inventory_objects_add(&inventory, &inv_count, &inv_cap,
+                                  device_instance,
+                                  devices[i].ip,
+                                  devices[i].port,
+                                  list.object_types,
+                                  list.object_instances,
+                                  list.count) != 0) {
+            fprintf(stderr, "  Failed to record objects for device %u\n", device_instance);
+        }
+        
         bacnet_object_list_free(&list);
     }
-
+     const char *out_path = PROJECT_ROOT "/data/inventory_objects.json";
+    if (inventory_objects_write(out_path, inventory, inv_count) == 0) {
+        printf("\nWrote %zu device object lists to %s\n", inv_count, out_path);
+    } else {
+        fprintf(stderr, "Failed to write inventory objects file\n");
+    }
+    inventory_objects_free(inventory, inv_count);
     free(devices);
 
     if (failures) {
@@ -76,5 +97,7 @@ int main(int argc, char *argv[]) {
     }
     printf("\nAll device Object_List reads succeeded.\n");
      return 0;
+
+
 }
 
